@@ -3,6 +3,7 @@
 import React from 'react'
 import Link from 'next/link'
 import * as Icons from 'lucide-react'
+import { LucideIcon } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { FavoriteButton } from '@/components/common/FavoriteButton'
 import { Tool } from '@/lib/types'
@@ -14,8 +15,8 @@ interface ToolCardProps {
 export function ToolCard({ tool }: ToolCardProps) {
   // 动态获取图标组件，确保图标存在
   const IconComponent = React.useMemo(() => {
-    const icon = (Icons as any)[tool.icon]
-    return icon && typeof icon === 'function' ? icon : Icons.HelpCircle
+    const icon = (Icons as unknown as Record<string, LucideIcon>)[tool.icon]
+    return icon || Icons.HelpCircle
   }, [tool.icon])
 
   return (

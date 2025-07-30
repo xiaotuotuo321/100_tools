@@ -58,3 +58,11 @@ export function slugify(text: string): string {
     .replace(/-+/g, '-')
     .trim()
 } 
+
+export function getRandomColor(): string {
+  // 生成明亮的随机颜色，避免太暗或太浅的颜色
+  const hue = Math.floor(Math.random() * 360)
+  const saturation = Math.floor(Math.random() * 30) + 70 // 70-100%
+  const lightness = Math.floor(Math.random() * 20) + 40 // 40-60%
+  return `hsl(${hue}, ${saturation}%, ${lightness}%)`
+}

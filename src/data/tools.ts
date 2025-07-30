@@ -315,6 +315,16 @@ export const toolsData: ToolCategory[] = [
         path: '/tools/math-tools/age-calculator',
         tags: ['年龄', '日期计算', '生日'],
       },
+      {
+        id: 'graph-calculator',
+        name: '图形计算器',
+        description: '绘制和可视化数学函数，支持多函数比较、缩放和自定义范围',
+        category: TOOL_CATEGORIES.MATH_TOOLS,
+        icon: 'LineChart',
+        path: '/tools/math-tools/graph-calculator',
+        tags: ['函数图像', '数学可视化', '函数绘制'],
+        featured: true,
+      },
     ],
   },
   {
@@ -430,7 +440,7 @@ export const toolsData: ToolCategory[] = [
         description: '测试打字速度和准确率',
         category: TOOL_CATEGORIES.STUDY_TOOLS,
         icon: 'Keyboard',
-        path: '/tools/study-tools/typing-test',
+        path: '/tools/study-tools/typing-speed-test',
         tags: ['打字', '速度测试', '练习'],
         featured: true,
       },
@@ -529,9 +539,9 @@ export function getCategoryById(id: string): ToolCategory | undefined {
 // 搜索工具
 export function searchTools(query: string): Tool[] {
   if (!query.trim()) return []
-  
+
   const lowercaseQuery = query.toLowerCase()
-  return allTools.filter(tool => 
+  return allTools.filter(tool =>
     tool.name.toLowerCase().includes(lowercaseQuery) ||
     tool.description.toLowerCase().includes(lowercaseQuery) ||
     tool.tags.some(tag => tag.toLowerCase().includes(lowercaseQuery))
