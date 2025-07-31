@@ -204,6 +204,16 @@ export const toolsData: ToolCategory[] = [
         path: '/tools/developer-tools/cron-generator',
         tags: ['CRON', '定时任务', '表达式'],
       },
+      {
+        id: 'aes-encryption',
+        name: 'AES加密/解密工具',
+        description: '使用高级加密标准(AES)加密和解密文本数据',
+        category: TOOL_CATEGORIES.DEVELOPER_TOOLS,
+        icon: 'Lock',
+        path: '/tools/developer-tools/aes-encryption',
+        tags: ['AES', '加密', '解密', '安全'],
+        featured: true,
+      },
     ],
   },
   {
