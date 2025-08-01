@@ -164,9 +164,9 @@ export default function AESEncryption() {
             }
 
             // 准备加密选项
-            const options: CryptoJS.CipherOption = {
-                mode: CryptoJS.mode[mode],
-                padding: CryptoJS.pad[padding],
+            const options: any = {
+                mode: (CryptoJS.mode as any)[mode],
+                padding: (CryptoJS.pad as any)[padding],
             };
 
             // 除ECB模式外，其他模式需要IV
@@ -255,9 +255,9 @@ export default function AESEncryption() {
 
         try {
             // 准备解密选项
-            const options: CryptoJS.CipherOption = {
-                mode: CryptoJS.mode[mode],
-                padding: CryptoJS.pad[padding],
+            const options: any = {
+                mode: (CryptoJS.mode as any)[mode],
+                padding: (CryptoJS.pad as any)[padding],
             };
 
             // 除ECB模式外，其他模式需要IV
@@ -281,6 +281,9 @@ export default function AESEncryption() {
             }
 
             // 执行解密
+            if (!cipherParams) {
+                throw new Error("无法解析密文格式");
+            }
             const decrypted = CryptoJS.AES.decrypt(cipherParams, parsedKey, options);
 
             // 转换为UTF-8字符串
