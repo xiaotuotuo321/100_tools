@@ -12,7 +12,20 @@ import { useToast } from "@/components/ui/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Copy, Lock, Unlock, RefreshCw, Loader2, Save, Trash2, History } from "lucide-react";
-import CryptoJS from 'crypto-js';
+import dynamic from 'next/dynamic';
+
+// 动态导入CryptoJS，避免SSR问题
+const CryptoJSModule = dynamic(() => import('crypto-js'), {
+    ssr: false,
+    loading: () => null
+});
+
+// 类型定义
+interface CipherOption {
+    mode?: any;
+    padding?: any;
+    iv?: any;
+}
 
 // 加密模式
 const MODES = [
@@ -100,25 +113,33 @@ export default function AESEncryption() {
 
     // 生成随机密钥
     const generateRandomKey = () => {
-        const keyBytes = parseInt(keySize) / 8;
-        const randomKey = CryptoJS.lib.WordArray.random(keyBytes);
-        setKey(randomKey.toString());
+        if (typeof window === 'undefined' || !CryptoJSModule) return;
 
-        toast({
-            title: "已生成随机密钥",
-            description: `已生成${keySize}位随机密钥`,
+        import('crypto-js').then(CryptoJS => {
+            const keyBytes = parseInt(keySize) / 8;
+            const randomKey = CryptoJS.lib.WordArray.random(keyBytes);
+            setKey(randomKey.toString());
+
+            toast({
+                title: "已生成随机密钥",
+                description: `已生成${keySize}位随机密钥`,
+            });
         });
     };
 
     // 生成随机IV
     const generateRandomIv = () => {
-        // AES块大小为128位(16字节)
-        const randomIv = CryptoJS.lib.WordArray.random(16);
-        setIv(randomIv.toString());
+        if (typeof window === 'undefined' || !CryptoJSModule) return;
 
-        toast({
-            title: "已生成随机IV",
-            description: "已生成128位随机初始化向量",
+        import('crypto-js').then(CryptoJS => {
+            // AES块大小为128位(16字节)
+            const randomIv = CryptoJS.lib.WordArray.random(16);
+            setIv(randomIv.toString());
+
+            toast({
+                title: "已生成随机IV",
+                description: "已生成128位随机初始化向量",
+            });
         });
     };
 
@@ -151,74 +172,101 @@ export default function AESEncryption() {
             return;
         }
 
+        if (typeof window === 'undefined' || !CryptoJSModule) {
+            toast({
+                title: "加密失败",
+                description: "加密库尚未加载完成，请稍后再试",
+                variant: "destructive",
+            });
+            return;
+        }
+
         setIsLoading(true);
         setResult("");
 
-        try {
-            // 如果启用了随机IV且当前模式不是ECB，则生成一个随机IV
-            let currentIv = iv;
-            if (useRandomIv && mode !== "ECB") {
-                const randomIv = CryptoJS.lib.WordArray.random(16);
-                currentIv = randomIv.toString();
-                setIv(currentIv);
+        // 动态导入CryptoJS
+        import('crypto-js').then(CryptoJS => {
+            try {
+                // 如果启用了随机IV且当前模式不是ECB，则生成一个随机IV
+                let currentIv = iv;
+                if (useRandomIv && mode !== "ECB") {
+                    const randomIv = CryptoJS.lib.WordArray.random(16);
+                    currentIv = randomIv.toString();
+                    setIv(currentIv);
+                }
+
+                // 准备加密选项
+                const options: CipherOption = {};
+
+                // 设置加密模式
+                if (CryptoJS.mode && CryptoJS.mode[mode as keyof typeof CryptoJS.mode]) {
+                    options.mode = CryptoJS.mode[mode as keyof typeof CryptoJS.mode];
+                }
+
+                // 设置填充方式
+                if (CryptoJS.pad && CryptoJS.pad[padding as keyof typeof CryptoJS.pad]) {
+                    options.padding = CryptoJS.pad[padding as keyof typeof CryptoJS.pad];
+                }
+
+                // 除ECB模式外，其他模式需要IV
+                if (mode !== "ECB") {
+                    options.iv = CryptoJS.enc.Utf8.parse(currentIv);
+                }
+
+                // 准备密钥
+                const parsedKey = CryptoJS.enc.Utf8.parse(key);
+
+                // 执行加密
+                const encrypted = CryptoJS.AES.encrypt(text, parsedKey, options);
+
+                // 根据选择的输出格式转换结果
+                let encryptedResult = "";
+                if (outputFormat === "Base64") {
+                    encryptedResult = encrypted.toString();
+                } else if (outputFormat === "Hex") {
+                    encryptedResult = encrypted.ciphertext.toString(CryptoJS.enc.Hex);
+                }
+
+                setResult(encryptedResult);
+
+                // 添加到历史记录
+                const newRecord: HistoryRecord = {
+                    id: `aes-${Date.now()}`,
+                    text,
+                    key,
+                    iv: currentIv,
+                    mode,
+                    padding,
+                    outputFormat,
+                    isEncryption: true,
+                    timestamp: Date.now()
+                };
+
+                setHistory(prev => [newRecord, ...prev].slice(0, 50)); // 限制历史记录数量
+
+                toast({
+                    title: "加密成功",
+                    description: "文本已成功加密",
+                });
+            } catch (error) {
+                console.error("加密错误:", error);
+                toast({
+                    title: "加密失败",
+                    description: "加密过程中发生错误，请检查输入参数",
+                    variant: "destructive",
+                });
+            } finally {
+                setIsLoading(false);
             }
-
-            // 准备加密选项
-            const options: CryptoJS.CipherOption = {
-                mode: CryptoJS.mode[mode],
-                padding: CryptoJS.pad[padding],
-            };
-
-            // 除ECB模式外，其他模式需要IV
-            if (mode !== "ECB") {
-                options.iv = CryptoJS.enc.Utf8.parse(currentIv);
-            }
-
-            // 准备密钥
-            const parsedKey = CryptoJS.enc.Utf8.parse(key);
-
-            // 执行加密
-            const encrypted = CryptoJS.AES.encrypt(text, parsedKey, options);
-
-            // 根据选择的输出格式转换结果
-            let encryptedResult = "";
-            if (outputFormat === "Base64") {
-                encryptedResult = encrypted.toString();
-            } else if (outputFormat === "Hex") {
-                encryptedResult = encrypted.ciphertext.toString(CryptoJS.enc.Hex);
-            }
-
-            setResult(encryptedResult);
-
-            // 添加到历史记录
-            const newRecord: HistoryRecord = {
-                id: `aes-${Date.now()}`,
-                text,
-                key,
-                iv: currentIv,
-                mode,
-                padding,
-                outputFormat,
-                isEncryption: true,
-                timestamp: Date.now()
-            };
-
-            setHistory(prev => [newRecord, ...prev].slice(0, 50)); // 限制历史记录数量
-
-            toast({
-                title: "加密成功",
-                description: "文本已成功加密",
-            });
-        } catch (error) {
-            console.error("加密错误:", error);
+        }).catch(error => {
+            console.error("加载CryptoJS失败:", error);
             toast({
                 title: "加密失败",
-                description: "加密过程中发生错误，请检查输入参数",
+                description: "加载加密库失败，请刷新页面重试",
                 variant: "destructive",
             });
-        } finally {
             setIsLoading(false);
-        }
+        });
     };
 
     // 执行解密
@@ -250,77 +298,104 @@ export default function AESEncryption() {
             return;
         }
 
+        if (typeof window === 'undefined' || !CryptoJSModule) {
+            toast({
+                title: "解密失败",
+                description: "解密库尚未加载完成，请稍后再试",
+                variant: "destructive",
+            });
+            return;
+        }
+
         setIsLoading(true);
         setResult("");
 
-        try {
-            // 准备解密选项
-            const options: CryptoJS.CipherOption = {
-                mode: CryptoJS.mode[mode],
-                padding: CryptoJS.pad[padding],
-            };
+        // 动态导入CryptoJS
+        import('crypto-js').then(CryptoJS => {
+            try {
+                // 准备解密选项
+                const options: CipherOption = {};
 
-            // 除ECB模式外，其他模式需要IV
-            if (mode !== "ECB") {
-                options.iv = CryptoJS.enc.Utf8.parse(iv);
-            }
+                // 设置解密模式
+                if (CryptoJS.mode && CryptoJS.mode[mode as keyof typeof CryptoJS.mode]) {
+                    options.mode = CryptoJS.mode[mode as keyof typeof CryptoJS.mode];
+                }
 
-            // 准备密钥
-            const parsedKey = CryptoJS.enc.Utf8.parse(key);
+                // 设置填充方式
+                if (CryptoJS.pad && CryptoJS.pad[padding as keyof typeof CryptoJS.pad]) {
+                    options.padding = CryptoJS.pad[padding as keyof typeof CryptoJS.pad];
+                }
 
-            // 根据输入格式处理密文
-            let cipherParams;
-            if (outputFormat === "Base64") {
-                cipherParams = CryptoJS.lib.CipherParams.create({
-                    ciphertext: CryptoJS.enc.Base64.parse(text)
+                // 除ECB模式外，其他模式需要IV
+                if (mode !== "ECB") {
+                    options.iv = CryptoJS.enc.Utf8.parse(iv);
+                }
+
+                // 准备密钥
+                const parsedKey = CryptoJS.enc.Utf8.parse(key);
+
+                // 根据输入格式处理密文
+                let cipherParams;
+                if (outputFormat === "Base64") {
+                    cipherParams = CryptoJS.lib.CipherParams.create({
+                        ciphertext: CryptoJS.enc.Base64.parse(text)
+                    });
+                } else if (outputFormat === "Hex") {
+                    cipherParams = CryptoJS.lib.CipherParams.create({
+                        ciphertext: CryptoJS.enc.Hex.parse(text)
+                    });
+                }
+
+                // 执行解密
+                const decrypted = CryptoJS.AES.decrypt(cipherParams || "", parsedKey, options);
+
+                // 转换为UTF-8字符串
+                const decryptedText = decrypted.toString(CryptoJS.enc.Utf8);
+
+                if (!decryptedText) {
+                    throw new Error("解密结果为空，可能是密钥或IV不正确");
+                }
+
+                setResult(decryptedText);
+
+                // 添加到历史记录
+                const newRecord: HistoryRecord = {
+                    id: `aes-${Date.now()}`,
+                    text,
+                    key,
+                    iv,
+                    mode,
+                    padding,
+                    outputFormat,
+                    isEncryption: false,
+                    timestamp: Date.now()
+                };
+
+                setHistory(prev => [newRecord, ...prev].slice(0, 50)); // 限制历史记录数量
+
+                toast({
+                    title: "解密成功",
+                    description: "文本已成功解密",
                 });
-            } else if (outputFormat === "Hex") {
-                cipherParams = CryptoJS.lib.CipherParams.create({
-                    ciphertext: CryptoJS.enc.Hex.parse(text)
+            } catch (error) {
+                console.error("解密错误:", error);
+                toast({
+                    title: "解密失败",
+                    description: "解密过程中发生错误，请检查输入参数和密文格式",
+                    variant: "destructive",
                 });
+            } finally {
+                setIsLoading(false);
             }
-
-            // 执行解密
-            const decrypted = CryptoJS.AES.decrypt(cipherParams, parsedKey, options);
-
-            // 转换为UTF-8字符串
-            const decryptedText = decrypted.toString(CryptoJS.enc.Utf8);
-
-            if (!decryptedText) {
-                throw new Error("解密结果为空，可能是密钥或IV不正确");
-            }
-
-            setResult(decryptedText);
-
-            // 添加到历史记录
-            const newRecord: HistoryRecord = {
-                id: `aes-${Date.now()}`,
-                text,
-                key,
-                iv,
-                mode,
-                padding,
-                outputFormat,
-                isEncryption: false,
-                timestamp: Date.now()
-            };
-
-            setHistory(prev => [newRecord, ...prev].slice(0, 50)); // 限制历史记录数量
-
-            toast({
-                title: "解密成功",
-                description: "文本已成功解密",
-            });
-        } catch (error) {
-            console.error("解密错误:", error);
+        }).catch(error => {
+            console.error("加载CryptoJS失败:", error);
             toast({
                 title: "解密失败",
-                description: "解密过程中发生错误，请检查输入参数和密文格式",
+                description: "加载解密库失败，请刷新页面重试",
                 variant: "destructive",
             });
-        } finally {
             setIsLoading(false);
-        }
+        });
     };
 
     // 复制结果到剪贴板

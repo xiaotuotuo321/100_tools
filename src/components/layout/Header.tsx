@@ -4,13 +4,15 @@ import Link from 'next/link'
 import { Search, Menu, Heart } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { SearchBox } from '@/components/common/SearchBox'
+import { SearchResults } from '@/components/common/SearchResults'
 import { ThemeToggle } from '@/components/common/ThemeToggle'
 import { useSearch } from '@/hooks/useSearch'
 import { useState } from 'react'
 
 export function Header() {
-  const { searchQuery, updateSearchQuery, clearSearch } = useSearch()
+  const { searchQuery, searchResults, updateSearchQuery, clearSearch, isSearching } = useSearch()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [isSearchResultsVisible, setIsSearchResultsVisible] = useState(false)
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -24,13 +26,25 @@ export function Header() {
         </Link>
 
         {/* 搜索框 - 桌面版 */}
-        <div className="hidden md:flex flex-1 max-w-md mx-6">
+        <div className="hidden md:flex flex-1 max-w-md mx-6 relative">
           <SearchBox
             value={searchQuery}
-            onChange={updateSearchQuery}
-            onClear={clearSearch}
+            onChange={(value) => {
+              updateSearchQuery(value)
+              setIsSearchResultsVisible(!!value)
+            }}
+            onClear={() => {
+              clearSearch()
+              setIsSearchResultsVisible(false)
+            }}
             placeholder="搜索工具..."
             className="w-full"
+          />
+          <SearchResults
+            results={searchResults}
+            isVisible={isSearchResultsVisible && searchQuery.length > 0}
+            onClose={() => setIsSearchResultsVisible(false)}
+            isLoading={isSearching}
           />
         </div>
 
@@ -52,9 +66,9 @@ export function Header() {
           <ThemeToggle />
 
           {/* 移动菜单按钮 */}
-          <Button 
-            variant="ghost" 
-            size="icon" 
+          <Button
+            variant="ghost"
+            size="icon"
             className="md:hidden"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           >
@@ -65,12 +79,24 @@ export function Header() {
 
       {/* 移动搜索框 */}
       <div className="md:hidden border-t bg-background/95 backdrop-blur">
-        <div className="container py-3">
+        <div className="container py-3 relative">
           <SearchBox
             value={searchQuery}
-            onChange={updateSearchQuery}
-            onClear={clearSearch}
+            onChange={(value) => {
+              updateSearchQuery(value)
+              setIsSearchResultsVisible(!!value)
+            }}
+            onClear={() => {
+              clearSearch()
+              setIsSearchResultsVisible(false)
+            }}
             placeholder="搜索工具..."
+          />
+          <SearchResults
+            results={searchResults}
+            isVisible={isSearchResultsVisible && searchQuery.length > 0}
+            onClose={() => setIsSearchResultsVisible(false)}
+            isLoading={isSearching}
           />
         </div>
       </div>
