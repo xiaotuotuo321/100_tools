@@ -1,0 +1,13 @@
+services:
+  misc:
+    # image: 172232502/misc
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    restart: always
+    # volumes:
+      # - './.env:/app/.env'
+    ports:
+      - 3012:3010
+        #- 3000:3000
+    # network_mode: 'host'
