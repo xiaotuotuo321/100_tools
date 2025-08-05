@@ -1,4 +1,4 @@
- import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { debounce } from '@/lib/utils'
 import { searchTools } from '@/data/tools'
 import { Tool } from '@/lib/types'
@@ -44,4 +44,4 @@ export function useSearch() {
     clearSearch,
     isSearching: searchQuery !== debouncedQuery,
   }
-} 
+}

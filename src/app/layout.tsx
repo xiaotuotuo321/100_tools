@@ -5,6 +5,7 @@ import './globals.css'
 import { ThemeProvider } from '@/components/providers/ThemeProvider'
 import { Header } from '@/components/layout/Header'
 import { Footer } from '@/components/layout/Footer'
+import { Toaster } from '@/components/ui/toaster'
 import { SITE_CONFIG } from '@/lib/constants'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -83,6 +84,7 @@ export default function RootLayout({
             <main className="flex-1">{children}</main>
             <Footer />
           </div>
+          <Toaster />
         </ThemeProvider>
       </body>
     </html>

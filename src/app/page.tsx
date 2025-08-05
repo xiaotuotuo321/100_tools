@@ -89,7 +89,7 @@ export default function HomePage() {
               {toolsData.map((category) => {
                 const icon = (Icons as any)[category.icon]
                 const IconComponent = icon && typeof icon === 'function' ? icon : Icons.HelpCircle
-                
+
                 return (
                   <Link key={category.id} href={`/tools/${category.id}`}>
                     <Card className="group hover:shadow-lg transition-all duration-200 hover:-translate-y-1 cursor-pointer">

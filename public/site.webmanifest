@@ -1,0 +1,16 @@
+{
+    "name": "100+ 实用工具集合",
+    "short_name": "工具集合",
+    "description": "一个现代化的在线工具平台，包含文本处理、开发工具、图片编辑、数学计算等100+个实用工具",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#000000",
+    "icons": [
+        {
+            "src": "/logo.svg",
+            "sizes": "any",
+            "type": "image/svg+xml"
+        }
+    ]
+}

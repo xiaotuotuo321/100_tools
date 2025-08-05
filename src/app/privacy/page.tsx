@@ -81,7 +81,7 @@ export default function PrivacyPage() {
                         如果您对本隐私政策有任何疑问或顾虑，请通过以下方式联系我们：
                     </p>
                     <ul>
-                        <li>邮箱：privacy@100tools.com</li>
+                        <li>邮箱：shiyue32123@126.com</li>
                     </ul>
                 </div>
             </div>

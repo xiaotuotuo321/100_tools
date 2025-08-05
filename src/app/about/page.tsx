@@ -48,7 +48,7 @@ export default function AboutPage() {
                         如果您有任何问题、建议或合作意向，欢迎通过以下方式联系我们：
                     </p>
                     <ul>
-                        <li>邮箱：contact@100tools.com</li>
+                        <li>邮箱：shiyue32123@126.com</li>
                         <li>GitHub：<a href={SITE_CONFIG.author.url} target="_blank" rel="noopener noreferrer">{SITE_CONFIG.author.url}</a></li>
                     </ul>
                 </div>

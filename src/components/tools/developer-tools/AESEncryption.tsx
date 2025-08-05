@@ -12,13 +12,6 @@ import { useToast } from "@/components/ui/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Copy, Lock, Unlock, RefreshCw, Loader2, Save, Trash2, History } from "lucide-react";
-import dynamic from 'next/dynamic';
-
-// 动态导入CryptoJS，避免SSR问题
-const CryptoJSModule = dynamic(() => import('crypto-js'), {
-    ssr: false,
-    loading: () => null
-});
 
 // 类型定义
 interface CipherOption {
@@ -92,54 +85,86 @@ export default function AESEncryption() {
     // 历史记录
     const [history, setHistory] = useState<HistoryRecord[]>([]);
 
+    // CryptoJS模块
+    const [cryptoJS, setCryptoJS] = useState<any>(null);
+    const [isBrowser, setIsBrowser] = useState<boolean>(false);
+
+    // 检测是否在浏览器环境
+    useEffect(() => {
+        setIsBrowser(true);
+    }, []);
+
+    // 加载CryptoJS
+    useEffect(() => {
+        if (isBrowser) {
+            import('crypto-js').then((module) => {
+                setCryptoJS(module);
+            }).catch(error => {
+                console.error("加载CryptoJS失败:", error);
+            });
+        }
+    }, [isBrowser]);
+
     // 从本地存储加载历史记录
     useEffect(() => {
-        const savedHistory = localStorage.getItem("aes-encryption-history");
-        if (savedHistory) {
-            try {
-                setHistory(JSON.parse(savedHistory));
-            } catch (e) {
-                console.error("无法解析历史记录", e);
+        if (isBrowser) {
+            const savedHistory = localStorage.getItem("aes-encryption-history");
+            if (savedHistory) {
+                try {
+                    setHistory(JSON.parse(savedHistory));
+                } catch (e) {
+                    console.error("无法解析历史记录", e);
+                }
             }
         }
-    }, []);
+    }, [isBrowser]);
 
     // 保存历史记录到本地存储
     useEffect(() => {
-        if (history.length > 0) {
+        if (isBrowser && history.length > 0) {
             localStorage.setItem("aes-encryption-history", JSON.stringify(history));
         }
-    }, [history]);
+    }, [history, isBrowser]);
 
     // 生成随机密钥
     const generateRandomKey = () => {
-        if (typeof window === 'undefined' || !CryptoJSModule) return;
-
-        import('crypto-js').then(CryptoJS => {
-            const keyBytes = parseInt(keySize) / 8;
-            const randomKey = CryptoJS.lib.WordArray.random(keyBytes);
-            setKey(randomKey.toString());
-
+        if (!isBrowser || !cryptoJS) {
             toast({
-                title: "已生成随机密钥",
-                description: `已生成${keySize}位随机密钥`,
+                title: "无法生成密钥",
+                description: "加密库尚未加载完成，请稍后再试",
+                variant: "destructive",
             });
+            return;
+        }
+
+        const keyBytes = parseInt(keySize) / 8;
+        const randomKey = cryptoJS.lib.WordArray.random(keyBytes);
+        setKey(randomKey.toString());
+
+        toast({
+            title: "已生成随机密钥",
+            description: `已生成${keySize}位随机密钥`,
         });
     };
 
     // 生成随机IV
     const generateRandomIv = () => {
-        if (typeof window === 'undefined' || !CryptoJSModule) return;
-
-        import('crypto-js').then(CryptoJS => {
-            // AES块大小为128位(16字节)
-            const randomIv = CryptoJS.lib.WordArray.random(16);
-            setIv(randomIv.toString());
-
+        if (!isBrowser || !cryptoJS) {
             toast({
-                title: "已生成随机IV",
-                description: "已生成128位随机初始化向量",
+                title: "无法生成IV",
+                description: "加密库尚未加载完成，请稍后再试",
+                variant: "destructive",
             });
+            return;
+        }
+
+        // AES块大小为128位(16字节)
+        const randomIv = cryptoJS.lib.WordArray.random(16);
+        setIv(randomIv.toString());
+
+        toast({
+            title: "已生成随机IV",
+            description: "已生成128位随机初始化向量",
         });
     };
 
@@ -172,10 +197,10 @@ export default function AESEncryption() {
             return;
         }
 
-        if (typeof window === 'undefined' || !CryptoJSModule) {
+        if (!isBrowser) {
             toast({
                 title: "加密失败",
-                description: "加密库尚未加载完成，请稍后再试",
+                description: "此功能仅在客户端可用",
                 variant: "destructive",
             });
             return;
@@ -184,47 +209,47 @@ export default function AESEncryption() {
         setIsLoading(true);
         setResult("");
 
-        // 动态导入CryptoJS
-        import('crypto-js').then(CryptoJS => {
+        // 确保CryptoJS已加载
+        const encryptWithCryptoJS = (cryptoModule: any) => {
             try {
                 // 如果启用了随机IV且当前模式不是ECB，则生成一个随机IV
                 let currentIv = iv;
                 if (useRandomIv && mode !== "ECB") {
-                    const randomIv = CryptoJS.lib.WordArray.random(16);
+                    const randomIv = cryptoModule.lib.WordArray.random(16);
                     currentIv = randomIv.toString();
                     setIv(currentIv);
                 }
 
                 // 准备加密选项
-                const options: CipherOption = {};
+                const options: any = {};
 
                 // 设置加密模式
-                if (CryptoJS.mode && CryptoJS.mode[mode as keyof typeof CryptoJS.mode]) {
-                    options.mode = CryptoJS.mode[mode as keyof typeof CryptoJS.mode];
+                if (cryptoModule.mode && cryptoModule.mode[mode]) {
+                    options.mode = cryptoModule.mode[mode];
                 }
 
                 // 设置填充方式
-                if (CryptoJS.pad && CryptoJS.pad[padding as keyof typeof CryptoJS.pad]) {
-                    options.padding = CryptoJS.pad[padding as keyof typeof CryptoJS.pad];
+                if (cryptoModule.pad && cryptoModule.pad[padding]) {
+                    options.padding = cryptoModule.pad[padding];
                 }
 
                 // 除ECB模式外，其他模式需要IV
                 if (mode !== "ECB") {
-                    options.iv = CryptoJS.enc.Utf8.parse(currentIv);
+                    options.iv = cryptoModule.enc.Utf8.parse(currentIv);
                 }
 
                 // 准备密钥
-                const parsedKey = CryptoJS.enc.Utf8.parse(key);
+                const parsedKey = cryptoModule.enc.Utf8.parse(key);
 
                 // 执行加密
-                const encrypted = CryptoJS.AES.encrypt(text, parsedKey, options);
+                const encrypted = cryptoModule.AES.encrypt(text, parsedKey, options);
 
                 // 根据选择的输出格式转换结果
                 let encryptedResult = "";
                 if (outputFormat === "Base64") {
                     encryptedResult = encrypted.toString();
                 } else if (outputFormat === "Hex") {
-                    encryptedResult = encrypted.ciphertext.toString(CryptoJS.enc.Hex);
+                    encryptedResult = encrypted.ciphertext.toString(cryptoModule.enc.Hex);
                 }
 
                 setResult(encryptedResult);
@@ -258,15 +283,25 @@ export default function AESEncryption() {
             } finally {
                 setIsLoading(false);
             }
-        }).catch(error => {
-            console.error("加载CryptoJS失败:", error);
-            toast({
-                title: "加密失败",
-                description: "加载加密库失败，请刷新页面重试",
-                variant: "destructive",
+        };
+
+        // 如果CryptoJS已加载，直接使用；否则先加载
+        if (cryptoJS) {
+            encryptWithCryptoJS(cryptoJS);
+        } else {
+            import('crypto-js').then(module => {
+                setCryptoJS(module);
+                encryptWithCryptoJS(module);
+            }).catch(error => {
+                console.error("加载CryptoJS失败:", error);
+                toast({
+                    title: "加密失败",
+                    description: "加载加密库失败，请刷新页面重试",
+                    variant: "destructive",
+                });
+                setIsLoading(false);
             });
-            setIsLoading(false);
-        });
+        }
     };
 
     // 执行解密
@@ -298,10 +333,10 @@ export default function AESEncryption() {
             return;
         }
 
-        if (typeof window === 'undefined' || !CryptoJSModule) {
+        if (!isBrowser) {
             toast({
                 title: "解密失败",
-                description: "解密库尚未加载完成，请稍后再试",
+                description: "此功能仅在客户端可用",
                 variant: "destructive",
             });
             return;
@@ -310,47 +345,47 @@ export default function AESEncryption() {
         setIsLoading(true);
         setResult("");
 
-        // 动态导入CryptoJS
-        import('crypto-js').then(CryptoJS => {
+        // 确保CryptoJS已加载
+        const decryptWithCryptoJS = (cryptoModule: any) => {
             try {
                 // 准备解密选项
-                const options: CipherOption = {};
+                const options: any = {};
 
-                // 设置解密模式
-                if (CryptoJS.mode && CryptoJS.mode[mode as keyof typeof CryptoJS.mode]) {
-                    options.mode = CryptoJS.mode[mode as keyof typeof CryptoJS.mode];
+                // 设置加密模式
+                if (cryptoModule.mode && cryptoModule.mode[mode]) {
+                    options.mode = cryptoModule.mode[mode];
                 }
 
                 // 设置填充方式
-                if (CryptoJS.pad && CryptoJS.pad[padding as keyof typeof CryptoJS.pad]) {
-                    options.padding = CryptoJS.pad[padding as keyof typeof CryptoJS.pad];
+                if (cryptoModule.pad && cryptoModule.pad[padding]) {
+                    options.padding = cryptoModule.pad[padding];
                 }
 
                 // 除ECB模式外，其他模式需要IV
                 if (mode !== "ECB") {
-                    options.iv = CryptoJS.enc.Utf8.parse(iv);
+                    options.iv = cryptoModule.enc.Utf8.parse(iv);
                 }
 
                 // 准备密钥
-                const parsedKey = CryptoJS.enc.Utf8.parse(key);
+                const parsedKey = cryptoModule.enc.Utf8.parse(key);
 
                 // 根据输入格式处理密文
                 let cipherParams;
                 if (outputFormat === "Base64") {
-                    cipherParams = CryptoJS.lib.CipherParams.create({
-                        ciphertext: CryptoJS.enc.Base64.parse(text)
+                    cipherParams = cryptoModule.lib.CipherParams.create({
+                        ciphertext: cryptoModule.enc.Base64.parse(text)
                     });
                 } else if (outputFormat === "Hex") {
-                    cipherParams = CryptoJS.lib.CipherParams.create({
-                        ciphertext: CryptoJS.enc.Hex.parse(text)
+                    cipherParams = cryptoModule.lib.CipherParams.create({
+                        ciphertext: cryptoModule.enc.Hex.parse(text)
                     });
                 }
 
                 // 执行解密
-                const decrypted = CryptoJS.AES.decrypt(cipherParams || "", parsedKey, options);
+                const decrypted = cryptoModule.AES.decrypt(cipherParams, parsedKey, options);
 
                 // 转换为UTF-8字符串
-                const decryptedText = decrypted.toString(CryptoJS.enc.Utf8);
+                const decryptedText = decrypted.toString(cryptoModule.enc.Utf8);
 
                 if (!decryptedText) {
                     throw new Error("解密结果为空，可能是密钥或IV不正确");
@@ -377,8 +412,8 @@ export default function AESEncryption() {
                     title: "解密成功",
                     description: "文本已成功解密",
                 });
-            } catch (error) {
-                console.error("解密错误:", error);
+            } catch (err) {
+                console.error("解密错误:", err);
                 toast({
                     title: "解密失败",
                     description: "解密过程中发生错误，请检查输入参数和密文格式",
@@ -387,19 +422,31 @@ export default function AESEncryption() {
             } finally {
                 setIsLoading(false);
             }
-        }).catch(error => {
-            console.error("加载CryptoJS失败:", error);
-            toast({
-                title: "解密失败",
-                description: "加载解密库失败，请刷新页面重试",
-                variant: "destructive",
+        };
+
+        // 如果CryptoJS已加载，直接使用；否则先加载
+        if (cryptoJS) {
+            decryptWithCryptoJS(cryptoJS);
+        } else {
+            import('crypto-js').then(module => {
+                setCryptoJS(module);
+                decryptWithCryptoJS(module);
+            }).catch(err => {
+                console.error("加载CryptoJS失败:", err);
+                toast({
+                    title: "解密失败",
+                    description: "加载解密库失败，请刷新页面重试",
+                    variant: "destructive",
+                });
+                setIsLoading(false);
             });
-            setIsLoading(false);
-        });
+        }
     };
 
     // 复制结果到剪贴板
     const copyToClipboard = (text: string) => {
+        if (!isBrowser) return;
+
         navigator.clipboard.writeText(text);
 
         toast({
@@ -426,6 +473,8 @@ export default function AESEncryption() {
 
     // 清除历史记录
     const clearHistory = () => {
+        if (!isBrowser) return;
+
         setHistory([]);
         localStorage.removeItem("aes-encryption-history");
 
@@ -788,66 +837,67 @@ export default function AESEncryption() {
 
                         {/* 历史记录选项卡 */}
                         <TabsContent value="history" className="space-y-4">
-                            {history.length === 0 ? (
-                                <div className="text-center py-8 text-muted-foreground">
-                                    <History className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                                    <p>还没有加密/解密历史记录</p>
-                                </div>
-                            ) : (
+                            {history.length > 0 ? (
                                 <div className="space-y-4">
-                                    <div className="flex justify-end">
+                                    <div className="flex justify-between items-center">
+                                        <h3 className="text-lg font-medium">历史记录</h3>
                                         <Button variant="outline" size="sm" onClick={clearHistory}>
-                                            <Trash2 className="h-4 w-4 mr-1" />
-                                            清除历史记录
+                                            <Trash2 className="h-4 w-4 mr-2" />
+                                            清除全部
                                         </Button>
                                     </div>
-
-                                    <div className="space-y-4">
+                                    <div className="space-y-2">
                                         {history.map((record) => (
                                             <Card key={record.id} className="overflow-hidden">
-                                                <CardHeader className="bg-muted/30 py-2">
-                                                    <div className="flex justify-between items-center">
-                                                        <div className="flex items-center">
-                                                            {record.isEncryption ? (
-                                                                <Lock className="h-4 w-4 mr-2" />
-                                                            ) : (
-                                                                <Unlock className="h-4 w-4 mr-2" />
-                                                            )}
-                                                            <span className="font-medium">
-                                                                {record.isEncryption ? "加密" : "解密"} - {formatDate(record.timestamp)}
-                                                            </span>
+                                                <CardContent className="p-4">
+                                                    <div className="flex justify-between items-start">
+                                                        <div className="space-y-1">
+                                                            <div className="flex items-center space-x-2">
+                                                                {record.isEncryption ? (
+                                                                    <Lock className="h-4 w-4 text-blue-500" />
+                                                                ) : (
+                                                                    <Unlock className="h-4 w-4 text-green-500" />
+                                                                )}
+                                                                <span className="font-medium">
+                                                                    {record.isEncryption ? "加密" : "解密"}
+                                                                </span>
+                                                                <span className="text-xs text-muted-foreground">
+                                                                    {formatDate(record.timestamp)}
+                                                                </span>
+                                                            </div>
+                                                            <div className="text-sm truncate max-w-[300px]">
+                                                                <span className="font-medium">文本: </span>
+                                                                {record.text.length > 30
+                                                                    ? `${record.text.substring(0, 30)}...`
+                                                                    : record.text}
+                                                            </div>
+                                                            <div className="text-sm truncate max-w-[300px]">
+                                                                <span className="font-medium">密钥: </span>
+                                                                {record.key.length > 30
+                                                                    ? `${record.key.substring(0, 30)}...`
+                                                                    : record.key}
+                                                            </div>
+                                                            <div className="text-xs text-muted-foreground">
+                                                                模式: {record.mode}, 填充: {record.padding}, 格式: {record.outputFormat}
+                                                            </div>
                                                         </div>
-                                                        <div className="flex space-x-1">
+                                                        <div className="flex space-x-2">
                                                             <Button
                                                                 variant="ghost"
-                                                                size="icon"
+                                                                size="sm"
                                                                 onClick={() => loadFromHistory(record)}
+                                                                title="加载此记录"
                                                             >
-                                                                <Save className="h-4 w-4" />
+                                                                <History className="h-4 w-4" />
                                                             </Button>
                                                             <Button
                                                                 variant="ghost"
-                                                                size="icon"
+                                                                size="sm"
                                                                 onClick={() => deleteHistoryItem(record.id)}
+                                                                title="删除此记录"
                                                             >
                                                                 <Trash2 className="h-4 w-4" />
                                                             </Button>
-                                                        </div>
-                                                    </div>
-                                                </CardHeader>
-                                                <CardContent className="py-3">
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                        <div>
-                                                            <Label className="text-xs">
-                                                                {record.isEncryption ? "明文" : "密文"}
-                                                            </Label>
-                                                            <p className="text-sm truncate">{record.text}</p>
-                                                        </div>
-                                                        <div>
-                                                            <Label className="text-xs">模式/填充/格式</Label>
-                                                            <p className="text-sm">
-                                                                {record.mode} / {record.padding} / {record.outputFormat}
-                                                            </p>
                                                         </div>
                                                     </div>
                                                 </CardContent>
@@ -855,48 +905,14 @@ export default function AESEncryption() {
                                         ))}
                                     </div>
                                 </div>
+                            ) : (
+                                <div className="text-center py-8 text-muted-foreground">
+                                    <p>暂无历史记录</p>
+                                    <p className="text-sm">加密或解密操作后会自动保存到历史记录</p>
+                                </div>
                             )}
                         </TabsContent>
                     </Tabs>
-                </CardContent>
-            </Card>
-
-            <Card>
-                <CardHeader>
-                    <CardTitle>关于AES加密</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="space-y-4">
-                        <div>
-                            <h3 className="text-lg font-medium">什么是AES加密？</h3>
-                            <p className="text-muted-foreground">
-                                高级加密标准(Advanced Encryption Standard, AES)是一种对称加密算法，被广泛用于保护敏感数据。
-                                它使用相同的密钥进行加密和解密，是目前最安全、最广泛使用的加密算法之一。
-                            </p>
-                        </div>
-
-                        <div>
-                            <h3 className="text-lg font-medium">加密模式说明</h3>
-                            <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-                                <li><strong>CBC (推荐)</strong> - 密码块链接模式，每个明文块先与前一个密文块进行异或，然后再加密</li>
-                                <li><strong>ECB</strong> - 电子密码本模式，将明文分成若干块，每块单独加密</li>
-                                <li><strong>CFB</strong> - 密码反馈模式，将前一个密文块加密后与当前明文块异或</li>
-                                <li><strong>OFB</strong> - 输出反馈模式，类似CFB，但使用加密算法的输出而不是密文进行异或</li>
-                                <li><strong>CTR</strong> - 计数器模式，将递增的计数器值加密后与明文异或</li>
-                            </ul>
-                        </div>
-
-                        <div>
-                            <h3 className="text-lg font-medium">安全提示</h3>
-                            <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-                                <li>使用强密钥，避免使用容易猜测的密码</li>
-                                <li>对于CBC等模式，始终使用随机IV</li>
-                                <li>避免使用ECB模式处理大量数据，因为它不能很好地隐藏数据模式</li>
-                                <li>妥善保管密钥和IV，它们对于解密是必需的</li>
-                                <li>考虑使用密钥派生函数(如PBKDF2)从密码生成密钥</li>
-                            </ul>
-                        </div>
-                    </div>
                 </CardContent>
             </Card>
         </div>
